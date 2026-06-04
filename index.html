@@ -922,7 +922,13 @@ function update() {
     if (deathTimer <= 0) {
       attempts++;
       attemptEl.textContent = "ATTEMPTS: " + attempts;
-      if (sb && playerSession) sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id);
+      if (sb && playerSession) {
+        sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id)
+          .then(r => console.log('同步attempts:', attempts, r))
+          .catch(e => console.error('同步失败:', e));
+      } else {
+        console.log('跳过同步: sb=', !!sb, 'playerSession=', !!playerSession);
+      }
       gameState = "deathwait";
     }
     return;
@@ -941,7 +947,11 @@ function update() {
       attempts++;
       attemptEl.textContent = "ATTEMPTS: " + attempts;
       // 立即同步总尝试次数
-      if (sb && playerSession) sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id);
+      if (sb && playerSession) {
+        sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id)
+          .then(r => console.log('同步attempts(R键):', attempts, r))
+          .catch(e => console.error('同步失败(R键):', e));
+      }
       loadLevel(levelIndex);
       resetPlayer();
       cameraX = 0;
