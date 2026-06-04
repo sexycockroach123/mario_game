@@ -877,7 +877,7 @@ function update() {
           else {
             (async () => {
               const r = await registerPlayer(regIdText.trim(), regNameText.trim());
-              if (r.ok) { regMsg = r.isNew ? "注册成功!" : "登录成功!"; menuScreen = "main"; idBox.value = ""; nameBox.value = ""; regField = 0; }
+              if (r.ok) { regMsg = r.isNew ? "注册成功!" : "登录成功!"; menuScreen = "main"; idBox.value = ""; nameBox.value = ""; regField = 0; startHeartbeat(); }
               else { regMsg = r.msg || "注册失败"; }
               regMsgTimer = 120;
             })();
@@ -1508,6 +1508,39 @@ async function fetchLeaderboard(lvlIdx) {
   return data || [];
 }
 
+// ─── 在线状态心跳 ───────────────────────────────────────────
+let heartbeatTimer = null;
+
+async function goOnline() {
+  if (!sb || !playerSession) return;
+  await sb.from('online_players').upsert({ player_id: playerSession.player_id, last_seen: new Date().toISOString() });
+}
+
+async function goOffline() {
+  if (!sb || !playerSession) return;
+  await sb.from('online_players').delete().eq('player_id', playerSession.player_id);
+}
+
+function startHeartbeat() {
+  goOnline();
+  heartbeatTimer = setInterval(goOnline, 10000); // 每10秒心跳
+}
+
+function stopHeartbeat() {
+  if (heartbeatTimer) { clearInterval(heartbeatTimer); heartbeatTimer = null; }
+}
+
+// 页面关闭时下线
+window.addEventListener("beforeunload", () => {
+  stopHeartbeat();
+  // 用 sendBeacon 确保请求发出
+  if (sb && playerSession) {
+    navigator.sendBeacon ? null : null;
+    // 同步删除（sendBeacon 不能自定义 header，直接用 fetch）
+    sb.from('online_players').delete().eq('player_id', playerSession.player_id);
+  }
+});
+
 // 注册界面状态
 let regField = 0;       // 0=ID输入 1=姓名输入
 let regIdText = "";
@@ -1522,6 +1555,11 @@ let lbLoading = false;
 
 // 启动时加载会话
 loadSession();
+
+// 已登录则启动心跳
+if (playerSession) {
+  startHeartbeat();
+}
 
 // 首次打开且未注册时，自动显示注册界面
 if (!playerSession) {
