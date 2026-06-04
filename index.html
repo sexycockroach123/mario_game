@@ -780,6 +780,10 @@ function update() {
 
     // ── 主菜单 ──
     if (menuScreen === "main") {
+      // 确保隐藏输入框不抢焦点
+      document.getElementById("regIdInput").blur();
+      document.getElementById("regNameInput").blur();
+      document.getElementById("nameInput").blur();
       if (keys["ArrowUp"] || keys["KeyW"]) { menuBtn = (menuBtn + 3) % 4; keys["ArrowUp"] = false; keys["KeyW"] = false; }
       if (keys["ArrowDown"] || keys["KeyS"]) { menuBtn = (menuBtn + 1) % 4; keys["ArrowDown"] = false; keys["KeyS"] = false; }
       if (keys["Enter"]) {
