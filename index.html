@@ -15,7 +15,6 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: bloc
 <div id="ui">
   <span id="scoreDisplay">SCORE: 0</span> &nbsp; | &nbsp;
   <span id="coinDisplay">COINS: 0</span> &nbsp; | &nbsp;
-  <span id="lifeDisplay">LIVES: 3</span> &nbsp; | &nbsp;
   <span id="attemptDisplay">ATTEMPTS: 0</span>
 </div>
 <canvas id="game"></canvas>
@@ -920,8 +919,10 @@ function update() {
     player.vy += GRAVITY;
     player.y += player.vy;
     if (deathTimer <= 0) {
-      if (lives <= 0) { attempts++; attemptEl.textContent = "ATTEMPTS: " + attempts; gameState = "gameover"; SFX.gameover(); saveData(); }
-      else { gameState = "deathwait"; }
+      attempts++;
+      attemptEl.textContent = "ATTEMPTS: " + attempts;
+      if (sb && playerSession) sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id);
+      gameState = "deathwait";
     }
     return;
   }
@@ -936,6 +937,10 @@ function update() {
     if (keys["KeyR"]) {
       keys["KeyR"] = false;
       levelAttempts++;
+      attempts++;
+      attemptEl.textContent = "ATTEMPTS: " + attempts;
+      // 立即同步总尝试次数
+      if (sb && playerSession) sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id);
       loadLevel(levelIndex);
       resetPlayer();
       cameraX = 0;
@@ -1379,7 +1384,6 @@ function playerDie() {
   player.dead = true;
   SFX.die();
   player.vy = -10;
-  loseLife();
   gameState = "dead";
   deathTimer = 90;
 }
@@ -2068,7 +2072,7 @@ function draw() {
     ctx.fillText("YOU DIED", W/2, H/2 - 40);
     ctx.fillStyle = "#fff";
     ctx.font = "22px monospace";
-    ctx.fillText("剩余生命: " + lives, W/2, H/2 + 10);
+    ctx.fillText("尝试次数: " + attempts, W/2, H/2 + 10);
     ctx.font = "18px monospace";
     ctx.fillText("按 R 重新开始 | ESC 返回菜单", W/2, H/2 + 50);
   }
