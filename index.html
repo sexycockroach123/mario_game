@@ -1514,6 +1514,8 @@ let heartbeatTimer = null;
 async function goOnline() {
   if (!sb || !playerSession) return;
   await sb.from('online_players').upsert({ player_id: playerSession.player_id, last_seen: new Date().toISOString() });
+  // 同步总尝试次数
+  await sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id);
 }
 
 async function goOffline() {
