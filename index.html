@@ -742,7 +742,7 @@ function bumpAnim(row, col) {
 
 // ─── 道具生成 ────────────────────────────────────────────────
 function spawnMushroom(x, y, poison, vx) {
-  items.push({ x, y, w: 28, h: 28, vx: vx || 0.9, vy: 0, type: "mushroom", onGround: false, bob: 0, poison: !!poison, name: poison ? "李晨珍" : "", split: false });
+  items.push({ x, y, w: 28, h: 28, vx: vx || 0.9, vy: 0, type: "mushroom", onGround: false, bob: 0, poison: !!poison, name: poison ? "美味蘑菇" : "", split: false });
 }
 
 function spawnStar(x, y) {
@@ -1349,7 +1349,7 @@ function update() {
       it.dead = true;
       const speeds = [-1.2, 0.9, 1.5];
       for (let i = 0; i < 3; i++) {
-        const m = { x: it.x + (i - 1) * 16, y: it.y - 2, w: 28, h: 28, vx: speeds[i], vy: -4, type: "mushroom", onGround: false, bob: 0, poison: true, name: "李晨珍", split: true };
+        const m = { x: it.x + (i - 1) * 16, y: it.y - 2, w: 28, h: 28, vx: speeds[i], vy: -4, type: "mushroom", onGround: false, bob: 0, poison: true, name: "美味蘑菇", split: true };
         items.push(m);
       }
       particles.push({ x: it.x + 10, y: it.y - 10, text: "SPLIT!", life: 30, type: "text" });
@@ -1830,8 +1830,8 @@ function draw() {
     ctx.font = e.big ? "bold 12px monospace" : "bold 9px monospace";
     ctx.textAlign = "center";
     const nx = e.x + e.w / 2, ny = e.y - 4;
-    ctx.strokeText("老村长", nx, ny);
-    ctx.fillText("老村长", nx, ny);
+    ctx.strokeText("板栗仔", nx, ny);
+    ctx.fillText("板栗仔", nx, ny);
   }
 
   // ─ 追逐者：巧乐兹 ──────────────────────────────────────────
