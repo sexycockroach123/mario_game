@@ -15,7 +15,8 @@ canvas { image-rendering: pixelated; image-rendering: crisp-edges; display: bloc
 <div id="ui">
   <span id="scoreDisplay">SCORE: 0</span> &nbsp; | &nbsp;
   <span id="coinDisplay">COINS: 0</span> &nbsp; | &nbsp;
-  <span id="attemptDisplay">ATTEMPTS: 0</span>
+  <span id="attemptDisplay">ATTEMPTS: 0</span> &nbsp; | &nbsp;
+  <span id="timerDisplay">TIME: 0.0s</span>
 </div>
 <canvas id="game"></canvas>
 <input id="nameInput" type="text" maxlength="6" style="position:absolute;top:-100px;left:-100px;opacity:0;" />
@@ -69,6 +70,7 @@ resizeCanvas();
 const scoreEl = document.getElementById("scoreDisplay");
 const coinEl  = document.getElementById("coinDisplay");
 const attemptEl = document.getElementById("attemptDisplay");
+const timerEl = document.getElementById("timerDisplay");
 
 // ─── 输入 ───────────────────────────────────────────────────
 const keys = {};
@@ -342,6 +344,8 @@ const BGM = {
 // ─── 全局状态 ───────────────────────────────────────────────
 let score = 0, coins = 0, lives = 3, attempts = 0;
 let levelAttempts = 0;       // 当前关卡尝试次数（用于排行榜）
+let levelTime = 0;           // 当前关卡计时（毫秒）
+let levelStartTime = 0;      // 关卡开始时间戳
 let gameState = "ready";     // ready | playing | paused | dead | deathwait | gameover | win
 let pauseSel = 0;            // 暂停菜单选项 0=继续 1=返回菜单
 let creativeMode = false;    // 创造模式
@@ -625,6 +629,7 @@ function init() {
   scoreEl.textContent = "SCORE: 0";
   coinEl.textContent  = "COINS: 0";
   gameState = "playing";
+  levelStartTime = Date.now();
   cameraX = 0;
   firstQHit = false;
   starTimer = 0;
@@ -1076,10 +1081,11 @@ function update() {
     gameState = "win";
     winTimer = 180;
     levelAttempts++;
+    const finalTime = (Date.now() - levelStartTime) / 1000; // 秒
     addScore(5000);
     SFX.win();
-    // 提交成绩到排行榜
-    submitLevelScore(levelIndex, levelAttempts);
+    // 提交成绩到排行榜（时间）
+    submitLevelScore(levelIndex, levelAttempts, finalTime);
     return;
   }
 
@@ -1392,6 +1398,7 @@ function playerDie() {
   player.dead = true;
   SFX.die();
   player.vy = -10;
+  levelTime = Date.now() - levelStartTime; // 记录当前用时
   gameState = "dead";
   deathTimer = 90;
 }
@@ -1505,24 +1512,25 @@ async function registerPlayer(playerId, name) {
   return { ok: true, isNew: true };
 }
 
-// 提交成绩（只更新更优记录）
-async function submitLevelScore(lvlIdx, attemptsUsed) {
+// 提交成绩（按时间排序，只更新更优记录）
+async function submitLevelScore(lvlIdx, attemptsUsed, timeSeconds) {
   if (!sb || !playerSession) return;
   const lvlId = lvlIdx + 1;
-  const { data: existing } = await sb.from('scores').select('attempts').eq('player_id', playerSession.player_id).eq('level_id', lvlId).single();
-  if (existing && existing.attempts <= attemptsUsed) return;
+  const { data: existing } = await sb.from('scores').select('time_seconds').eq('player_id', playerSession.player_id).eq('level_id', lvlId).single();
+  // 如果已有记录且时间更短，不更新
+  if (existing && existing.time_seconds > 0 && existing.time_seconds <= timeSeconds) return;
   if (existing) {
-    await sb.from('scores').update({ attempts: attemptsUsed, updated_at: new Date().toISOString() }).eq('player_id', playerSession.player_id).eq('level_id', lvlId);
+    await sb.from('scores').update({ attempts: attemptsUsed, time_seconds: timeSeconds, updated_at: new Date().toISOString() }).eq('player_id', playerSession.player_id).eq('level_id', lvlId);
   } else {
-    await sb.from('scores').insert({ player_id: playerSession.player_id, level_id: lvlId, attempts: attemptsUsed });
+    await sb.from('scores').insert({ player_id: playerSession.player_id, level_id: lvlId, attempts: attemptsUsed, time_seconds: timeSeconds });
   }
 }
 
-// 获取排行榜
+// 获取排行榜（按时间排序）
 async function fetchLeaderboard(lvlIdx) {
   if (!sb) return [];
   const lvlId = lvlIdx + 1;
-  const { data } = await sb.from('scores').select('player_id, attempts, players(name)').eq('level_id', lvlId).order('attempts', { ascending: true }).limit(20);
+  const { data } = await sb.from('scores').select('player_id, time_seconds, players(name)').eq('level_id', lvlId).order('time_seconds', { ascending: true }).limit(20);
   return data || [];
 }
 
@@ -2126,7 +2134,8 @@ function draw() {
     ctx.font = "20px monospace";
     ctx.fillText("SCORE: " + score, W/2, H/2 + 10);
     ctx.font = "16px monospace";
-    ctx.fillText("通关尝试次数: " + levelAttempts, W/2, H/2 + 35);
+    const finalTimeStr = ((Date.now() - levelStartTime) / 1000).toFixed(1);
+    ctx.fillText("通关时间: " + finalTimeStr + "s | 尝试: " + levelAttempts, W/2, H/2 + 35);
     if (playerSession) {
       ctx.fillStyle = "#2ecc71";
       ctx.font = "13px monospace";
@@ -2464,7 +2473,7 @@ function draw() {
       ctx.fillText("排名", W/2 - 170, 180);
       ctx.fillText("玩家ID", W/2 - 100, 180);
       ctx.textAlign = "right";
-      ctx.fillText("最少尝试次数", W/2 + 170, 180);
+      ctx.fillText("通关时间", W/2 + 170, 180);
       ctx.strokeStyle = "#333";
       ctx.lineWidth = 1;
       ctx.beginPath(); ctx.moveTo(W/2 - 175, 188); ctx.lineTo(W/2 + 175, 188); ctx.stroke();
@@ -2491,7 +2500,8 @@ function draw() {
           ctx.fillText(medal, W/2 - 170, ry);
           ctx.fillText(row.player_id, W/2 - 100, ry);
           ctx.textAlign = "right";
-          ctx.fillText(row.attempts + " 次", W/2 + 170, ry);
+          const timeStr = row.time_seconds > 0 ? row.time_seconds.toFixed(1) + "s" : "--";
+          ctx.fillText(timeStr, W/2 + 170, ry);
         }
       }
 
@@ -2644,6 +2654,11 @@ function loop() {
     levelAttempts = 0;
     init();
     keys["KeyR"] = false;
+  }
+  // 更新计时显示
+  if (gameState === "playing") {
+    const elapsed = (Date.now() - levelStartTime) / 1000;
+    timerEl.textContent = "TIME: " + elapsed.toFixed(1) + "s";
   }
   update();
   draw();
