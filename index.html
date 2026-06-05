@@ -786,14 +786,15 @@ function update() {
       document.getElementById("regIdInput").blur();
       document.getElementById("regNameInput").blur();
       document.getElementById("nameInput").blur();
-      if (keys["ArrowUp"] || keys["KeyW"]) { menuBtn = (menuBtn + 3) % 4; keys["ArrowUp"] = false; keys["KeyW"] = false; }
-      if (keys["ArrowDown"] || keys["KeyS"]) { menuBtn = (menuBtn + 1) % 4; keys["ArrowDown"] = false; keys["KeyS"] = false; }
+      if (keys["ArrowUp"] || keys["KeyW"]) { menuBtn = (menuBtn + 4) % 5; keys["ArrowUp"] = false; keys["KeyW"] = false; }
+      if (keys["ArrowDown"] || keys["KeyS"]) { menuBtn = (menuBtn + 1) % 5; keys["ArrowDown"] = false; keys["KeyS"] = false; }
       if (keys["Enter"]) {
         keys["Enter"] = false;
         if (menuBtn === 0) menuScreen = "characters";
         else if (menuBtn === 1) menuScreen = "levels";
         else if (menuBtn === 2) { menuScreen = "leaderboard"; lbTab = 0; lbData = []; }
-        else if (menuBtn === 3) menuScreen = "settings";
+        else if (menuBtn === 3) { menuScreen = "history"; histTab = 0; histData = []; }
+        else if (menuBtn === 4) menuScreen = "settings";
       }
       if (keys["Space"]) {
         keys["Space"] = false;
@@ -907,6 +908,19 @@ function update() {
       if (lbData.length === 0 && !lbLoading) {
         lbLoading = true;
         fetchLeaderboard(lbTab).then(d => { lbData = d; lbLoading = false; });
+      }
+      return;
+    }
+
+    // ── 历史记录界面 ──
+    if (menuScreen === "history") {
+      if (keys["ArrowLeft"] || keys["KeyA"]) { histTab = (histTab + LEVELS.length - 1) % LEVELS.length; keys["ArrowLeft"] = false; keys["KeyA"] = false; histData = []; }
+      if (keys["ArrowRight"] || keys["KeyD"]) { histTab = (histTab + 1) % LEVELS.length; keys["ArrowRight"] = false; keys["KeyD"] = false; histData = []; }
+      if (keys["Escape"] || keys["Enter"]) { keys["Escape"] = false; keys["Enter"] = false; menuScreen = "main"; }
+      // 加载数据
+      if (histData.length === 0 && !histLoading && playerSession) {
+        histLoading = true;
+        fetchHistory(histTab).then(d => { histData = d; histLoading = false; });
       }
       return;
     }
@@ -1517,8 +1531,10 @@ async function registerPlayer(playerId, name) {
 async function submitLevelScore(lvlIdx, attemptsUsed, timeSeconds) {
   if (!sb || !playerSession) return;
   const lvlId = lvlIdx + 1;
+  // 记录每次通关到历史表
+  await sb.from('level_completions').insert({ player_id: playerSession.player_id, level_id: lvlId, time_seconds: timeSeconds });
+  // 更新最佳记录
   const { data: existing } = await sb.from('scores').select('time_seconds').eq('player_id', playerSession.player_id).eq('level_id', lvlId).single();
-  // 如果已有记录且时间更短，不更新
   if (existing && existing.time_seconds > 0 && existing.time_seconds <= timeSeconds) return;
   if (existing) {
     await sb.from('scores').update({ attempts: attemptsUsed, time_seconds: timeSeconds, updated_at: new Date().toISOString() }).eq('player_id', playerSession.player_id).eq('level_id', lvlId);
@@ -1532,6 +1548,14 @@ async function fetchLeaderboard(lvlIdx) {
   if (!sb) return [];
   const lvlId = lvlIdx + 1;
   const { data } = await sb.from('scores').select('player_id, time_seconds, players(name)').eq('level_id', lvlId).order('time_seconds', { ascending: true }).limit(20);
+  return data || [];
+}
+
+// 获取当前玩家的历史记录
+async function fetchHistory(lvlIdx) {
+  if (!sb || !playerSession) return [];
+  const lvlId = lvlIdx + 1;
+  const { data } = await sb.from('level_completions').select('time_seconds, completed_at').eq('player_id', playerSession.player_id).eq('level_id', lvlId).order('completed_at', { ascending: false }).limit(20);
   return data || [];
 }
 
@@ -1581,6 +1605,11 @@ let regMsgTimer = 0;
 let lbTab = 0;           // 当前关卡 Tab
 let lbData = [];         // 排行榜数据缓存
 let lbLoading = false;
+
+// 历史记录界面状态
+let histTab = 0;           // 当前关卡 Tab
+let histData = [];         // 历史数据缓存
+let histLoading = false;
 
 // 启动时加载会话
 loadSession();
@@ -2189,20 +2218,20 @@ function draw() {
 
     // ═══ 主菜单 ═══
     if (menuScreen === "main") {
-      const btns = ["🎮 角色选择", "🗺️ 关卡选择", "🏆 排行榜", "⚙️ 设置"];
-      const btnY = 130;
-      for (let i = 0; i < 4; i++) {
-        const by = btnY + i * 52;
+      const btns = ["🎮 角色选择", "🗺️ 关卡选择", "🏆 排行榜", "📜 历史记录", "⚙️ 设置"];
+      const btnY = 120;
+      for (let i = 0; i < 5; i++) {
+        const by = btnY + i * 46;
         const sel = (i === menuBtn);
         ctx.fillStyle = sel ? "rgba(255,215,0,0.2)" : "rgba(255,255,255,0.05)";
-        ctx.fillRect(W/2 - 130, by, 260, 40);
+        ctx.fillRect(W/2 - 130, by, 260, 36);
         ctx.strokeStyle = sel ? "#ffd700" : "#666";
         ctx.lineWidth = sel ? 2 : 1;
-        ctx.strokeRect(W/2 - 130, by, 260, 40);
+        ctx.strokeRect(W/2 - 130, by, 260, 36);
         ctx.fillStyle = sel ? "#ffd700" : "#ccc";
-        ctx.font = "bold 16px monospace";
+        ctx.font = "bold 15px monospace";
         ctx.textAlign = "center";
-        ctx.fillText(btns[i], W/2, by + 27);
+        ctx.fillText(btns[i], W/2, by + 25);
       }
       // 玩家信息
       if (playerSession) {
@@ -2503,6 +2532,71 @@ function draw() {
           ctx.textAlign = "right";
           const timeStr = row.time_seconds > 0 ? row.time_seconds.toFixed(1) + "s" : "--";
           ctx.fillText(timeStr, W/2 + 170, ry);
+        }
+      }
+
+      ctx.fillStyle = "#888"; ctx.font = "12px monospace"; ctx.textAlign = "center";
+      ctx.fillText("←→ 切换关卡  |  ESC 返回", W/2, 450);
+    }
+
+    // ═══ 历史记录界面 ═══
+    if (menuScreen === "history") {
+      ctx.fillStyle = "#ffd700";
+      ctx.font = "bold 22px monospace";
+      ctx.textAlign = "center";
+      ctx.fillText("📜 我的通关记录", W/2, 120);
+
+      if (!playerSession) {
+        ctx.fillStyle = "#888"; ctx.font = "14px monospace";
+        ctx.fillText("请先注册登录", W/2, 250);
+      } else {
+        // 关卡 Tab
+        for (let i = 0; i < LEVELS.length; i++) {
+          const tx = W/2 - (LEVELS.length * 90) / 2 + i * 90 + 45;
+          const sel = (i === histTab);
+          ctx.fillStyle = sel ? "#ffd700" : "#888";
+          ctx.font = (sel ? "bold " : "") + "14px monospace";
+          ctx.fillText("第" + (i+1) + "关", tx, 150);
+          if (sel) {
+            ctx.fillStyle = "#ffd700";
+            ctx.fillRect(tx - 25, 155, 50, 2);
+          }
+        }
+
+        // 表头
+        ctx.fillStyle = "#888";
+        ctx.font = "12px monospace";
+        ctx.textAlign = "left";
+        ctx.fillText("#", W/2 - 170, 180);
+        ctx.fillText("通关时间", W/2 - 100, 180);
+        ctx.textAlign = "right";
+        ctx.fillText("完成时间", W/2 + 170, 180);
+        ctx.strokeStyle = "#333";
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(W/2 - 175, 188); ctx.lineTo(W/2 + 175, 188); ctx.stroke();
+
+        // 数据
+        if (histLoading) {
+          ctx.fillStyle = "#888"; ctx.font = "14px monospace"; ctx.textAlign = "center";
+          ctx.fillText("加载中...", W/2, 250);
+        } else if (histData.length === 0) {
+          ctx.fillStyle = "#666"; ctx.font = "14px monospace"; ctx.textAlign = "center";
+          ctx.fillText("暂无通关记录", W/2, 250);
+        } else {
+          for (let i = 0; i < histData.length; i++) {
+            const row = histData[i];
+            const ry = 205 + i * 28;
+            if (ry > 420) break;
+            ctx.fillStyle = i === 0 ? "#ffd700" : "#ccc";
+            ctx.font = "13px monospace";
+            ctx.textAlign = "left";
+            ctx.fillText((i+1) + ".", W/2 - 170, ry);
+            const timeStr = row.time_seconds > 0 ? row.time_seconds.toFixed(1) + "s" : "--";
+            ctx.fillText(timeStr, W/2 - 100, ry);
+            ctx.textAlign = "right";
+            const dateStr = row.completed_at ? new Date(row.completed_at).toLocaleString() : "--";
+            ctx.fillText(dateStr, W/2 + 170, ry);
+          }
         }
       }
 
