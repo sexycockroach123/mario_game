@@ -922,12 +922,11 @@ function update() {
     if (deathTimer <= 0) {
       attempts++;
       attemptEl.textContent = "ATTEMPTS: " + attempts;
+      saveData();
       if (sb && playerSession) {
         sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id)
           .then(r => console.log('同步attempts:', attempts, r))
           .catch(e => console.error('同步失败:', e));
-      } else {
-        console.log('跳过同步: sb=', !!sb, 'playerSession=', !!playerSession);
       }
       gameState = "deathwait";
     }
@@ -946,11 +945,9 @@ function update() {
       levelAttempts++;
       attempts++;
       attemptEl.textContent = "ATTEMPTS: " + attempts;
-      // 立即同步总尝试次数
+      saveData();
       if (sb && playerSession) {
-        sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id)
-          .then(r => console.log('同步attempts(R键):', attempts, r))
-          .catch(e => console.error('同步失败(R键):', e));
+        sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id);
       }
       loadLevel(levelIndex);
       resetPlayer();
@@ -1493,6 +1490,12 @@ async function registerPlayer(playerId, name) {
   if (existing) {
     playerSession = existing;
     saveSession(existing);
+    // 从数据库加载最新attempts
+    if (existing.total_attempts !== undefined && existing.total_attempts !== null) {
+      attempts = existing.total_attempts;
+      attemptEl.textContent = "ATTEMPTS: " + attempts;
+      saveData();
+    }
     return { ok: true, isNew: false };
   }
   const { data, error } = await sb.from('players').insert({ player_id: playerId, name: name }).select().single();
@@ -1573,9 +1576,20 @@ let lbLoading = false;
 // 启动时加载会话
 loadSession();
 
-// 已登录则启动心跳
+// 已登录则启动心跳并同步attempts
 if (playerSession) {
   startHeartbeat();
+  // 从数据库加载最新attempts
+  if (sb) {
+    sb.from('players').select('total_attempts').eq('player_id', playerSession.player_id).single()
+      .then(r => {
+        if (r.data && r.data.total_attempts !== undefined && r.data.total_attempts !== null) {
+          attempts = r.data.total_attempts;
+          attemptEl.textContent = "ATTEMPTS: " + attempts;
+          saveData();
+        }
+      });
+  }
 }
 
 // 首次打开且未注册时，自动显示注册界面
