@@ -954,6 +954,7 @@ function update() {
       if (sb && playerSession) {
         sb.from('players').update({ total_attempts: attempts }).eq('player_id', playerSession.player_id);
       }
+      levelStartTime = Date.now(); // 重置计时器
       loadLevel(levelIndex);
       resetPlayer();
       cameraX = 0;
